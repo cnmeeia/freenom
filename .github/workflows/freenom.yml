@@ -1,0 +1,134 @@
+name: Freenom Auto Renew
+ 
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 00 02 * * *
+jobs:
+  run-it:
+    runs-on: ubuntu-latest
+    name: Run it on action
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v2
+      - name: Setting up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+      - name: Setting up Freenom account
+        run: |
+          cp .env.example .env
+          if [[ ('${{ secrets.FREENOM_USERNAME }}' == '' || '${{ secrets.FREENOM_PASSWORD }}' == '') && '${{ secrets.MULTIPLE_ACCOUNTS }}' == '' ]]; then echo '你在 Github 的当前项目的 Settings > Secrets 画面没有设置任何与账户信息相关的 secret 值，无法正常运行，请添加新的 secret 值，设置 FREENOM_USERNAME 与 FREENOM_PASSWORD，或者设置 MULTIPLE_ACCOUNTS，以及 .env 文件中其它必要项，各项的具体含义与格式参考本项目 .env 文件中的说明。'; fi
+          if [ '${{ secrets.FREENOM_USERNAME }}' != '' ]; then sed -i "s/^FREENOM_USERNAME=.*$/FREENOM_USERNAME='${{ secrets.FREENOM_USERNAME }}'/" .env; fi
+          if [ '${{ secrets.FREENOM_PASSWORD }}' != '' ]; then sed -i "s/^FREENOM_PASSWORD=.*$/FREENOM_PASSWORD='${{ secrets.FREENOM_PASSWORD }}'/" .env; fi
+          if [ '${{ secrets.MULTIPLE_ACCOUNTS }}' != '' ]; then sed -i "s/^MULTIPLE_ACCOUNTS=.*$/MULTIPLE_ACCOUNTS='${{ secrets.MULTIPLE_ACCOUNTS }}'/" .env; fi
+          if [ '${{ secrets.MAIL_USERNAME }}' != '' ]; then sed -i "s/^MAIL_USERNAME=.*$/MAIL_USERNAME='${{ secrets.MAIL_USERNAME }}'/" .env; fi
+          if [ '${{ secrets.MAIL_PASSWORD }}' != '' ]; then sed -i "s/^MAIL_PASSWORD=.*$/MAIL_PASSWORD='${{ secrets.MAIL_PASSWORD }}'/" .env; fi
+          if [ '${{ secrets.TO }}' != '' ]; then sed -i "s/^TO=.*$/TO='${{ secrets.TO }}'/" .env; fi
+          if [ '${{ secrets.MAIL_ENABLE }}' != '' ]; then sed -i "s/^MAIL_ENABLE=.*$/MAIL_ENABLE='${{ secrets.MAIL_ENABLE }}'/" .env; fi
+          if [ '${{ secrets.TELEGRAM_CHAT_ID }}' != '' ]; then sed -i "s/^TELEGRAM_CHAT_ID=.*$/TELEGRAM_CHAT_ID='${{ secrets.TELEGRAM_CHAT_ID }}'/" .env; fi
+          if [ '${{ secrets.TELEGRAM_BOT_TOKEN }}' != '' ]; then sed -i "s/^TELEGRAM_BOT_TOKEN=.*$/TELEGRAM_BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'/" .env; fi
+          if [ '${{ secrets.TELEGRAM_BOT_ENABLE }}' != '' ]; then sed -i "s/^TELEGRAM_BOT_ENABLE=.*$/TELEGRAM_BOT_ENABLE='${{ secrets.TELEGRAM_BOT_ENABLE }}'/" .env; fi
+          if [ '${{ secrets.NOTICE_FREQ }}' != '' ]; then sed -i "s/^NOTICE_FREQ=.*$/NOTICE_FREQ='${{ secrets.NOTICE_FREQ }}'/" .env; fi
+          sed -i "s/^ON_GITHUB_ACTIONS=.*$/ON_GITHUB_ACTIONS=true/" .env
+      - name: Renewing Freenom domains
+        run: |
+          php run
+
+4.设置Secrets变量，这里是当初原仓库Actions变量的说明
+
+变量名	含义	默认值	是否必须	备注
+FREENOM_USERNAME	freenom 账户	-	是	只支持邮箱账户，不支持也不打算支持第三方社交账户登录
+FREENOM_PASSWORD	freenom 密码	-	是	某些特殊字符可能需要转义，在Github actions环境，请在除字母数字以外的字符前加上“\”，否则可能无法正确读取密码，此举是防止某些字符在shell命令行被解析，举个例子，比如密码是fei.,:!~@#$%^&*?233-_abcd^$$，那么写到秘密变量时就应写为fei\.\,\:\!\~\@\#\$\%\^\&\*\?233\-\_abcd\^\$\$。而在普通VPS环境，则只用在密码中的“#”或单双引号前加“\”，请参考.env.example文件内的注释，应该没人会设置那么变态的密码吧
+MULTIPLE_ACCOUNTS	多账户支持	-	否	多个账户和密码的格式必须是“<账户1>@<密码1>|<账户2>@<密码2>|<账户3>@<密码3>”，如果设置了多账户，上面的FREENOM_USERNAME和FREENOM_PASSWORD可不设置
+MAIL_USERNAME	机器人邮箱账户	-	是	支持Gmail、QQ邮箱以及163邮箱，尽可能使用163邮箱或者QQ邮箱，而非之前推荐的Gmail。因为谷歌的安全机制，每次在新设备登录 Gmail 都会先被限制，需要手动解除限制才行，而Github Actions每次创建的虚拟环境都会分配一个新的设备IP，相当于每次都是从新设备登录Gmail，而我们不可能每次都去手动为Gmail解除登录限制，所以这种机制会导致无法发出通知邮件。
+MAIL_PASSWORD	机器人邮箱密码	-	是	Gmail填密码，QQ邮箱或163邮箱填授权码
+TO	接收通知的邮箱	-	是	你自己最常用的邮箱，推荐使用QQ邮箱，用来接收机器人邮箱发出的域名相关邮件
+MAIL_ENABLE	是否启用邮件推送功能	true	否	true：启用
+false：不启用
+默认启用，如果设为false，不启用邮件推送功能，则上面的MAIL_USERNAME、MAIL_PASSWORD、TO变量变为非必须，可不设置
+TELEGRAM_CHAT_ID	你的chat_id	-	否	通过发送/start给@userinfobot可以获取自己的id
+TELEGRAM_BOT_TOKEN	你的Telegram bot的token	-	否	
+TELEGRAM_BOT_ENABLE	是否启用Telegram Bot推送功能	false	否	true：启用
+false：不启用
+默认不启用，如果设为true，则必须设置上面的TELEGRAM_CHAT_ID和TELEGRAM_BOT_TOKEN变量
+NOTICE_FREQ	通知频率	1	否	0：仅当有续期操作的时候
+1：每次执行
+
+5.在Actions页面，按照截图步骤调试
+
+
+6.如运行成功，将会收到一条通知
+
+上一篇文章
+文章建议
+下一篇文章
+通过 Docker 部署给Freenom域名免费自动续期
+
+笛
+思君無転義
+Comments NOTHING
+ Markdown Supported while  Forbidden
+
+你是我一生只会遇见一次的惊喜 ...
+戳我呀 OωO
+
+
+
+
+私密评论
+ 在此浏览器中保存我的显示名称、邮箱地址和网站地址，以便下次评论时使用。
+
+
+萌ICP备20220245号
+
+已在大风大雨中勉强度过 363天16小时46分12秒
+
+因为你喜欢海，所以我一直浪。——「君」
+
+
+Theme Sakurairo by Fuukei
+
+
+Style
+
+     
+Fonts
+
+ 
+name: Freenom Auto Renew
+ 
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 00 02 * * *
+jobs:
+  run-it:
+    runs-on: ubuntu-latest
+    name: Run it on action
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v2
+      - name: Setting up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+      - name: Setting up Freenom account
+        run: |
+          cp .env.example .env
+          if [[ ('${{ secrets.FREENOM_USERNAME }}' == '' || '${{ secrets.FREENOM_PASSWORD }}' == '') && '${{ secrets.MULTIPLE_ACCOUNTS }}' == '' ]]; then echo '你在 Github 的当前项目的 Settings > Secrets 画面没有设置任何与账户信息相关的 secret 值，无法正常运行，请添加新的 secret 值，设置 FREENOM_USERNAME 与 FREENOM_PASSWORD，或者设置 MULTIPLE_ACCOUNTS，以及 .env 文件中其它必要项，各项的具体含义与格式参考本项目 .env 文件中的说明。'; fi
+          if [ '${{ secrets.FREENOM_USERNAME }}' != '' ]; then sed -i "s/^FREENOM_USERNAME=.*$/FREENOM_USERNAME='${{ secrets.FREENOM_USERNAME }}'/" .env; fi
+          if [ '${{ secrets.FREENOM_PASSWORD }}' != '' ]; then sed -i "s/^FREENOM_PASSWORD=.*$/FREENOM_PASSWORD='${{ secrets.FREENOM_PASSWORD }}'/" .env; fi
+          if [ '${{ secrets.MULTIPLE_ACCOUNTS }}' != '' ]; then sed -i "s/^MULTIPLE_ACCOUNTS=.*$/MULTIPLE_ACCOUNTS='${{ secrets.MULTIPLE_ACCOUNTS }}'/" .env; fi
+          if [ '${{ secrets.MAIL_USERNAME }}' != '' ]; then sed -i "s/^MAIL_USERNAME=.*$/MAIL_USERNAME='${{ secrets.MAIL_USERNAME }}'/" .env; fi
+          if [ '${{ secrets.MAIL_PASSWORD }}' != '' ]; then sed -i "s/^MAIL_PASSWORD=.*$/MAIL_PASSWORD='${{ secrets.MAIL_PASSWORD }}'/" .env; fi
+          if [ '${{ secrets.TO }}' != '' ]; then sed -i "s/^TO=.*$/TO='${{ secrets.TO }}'/" .env; fi
+          if [ '${{ secrets.MAIL_ENABLE }}' != '' ]; then sed -i "s/^MAIL_ENABLE=.*$/MAIL_ENABLE='${{ secrets.MAIL_ENABLE }}'/" .env; fi
+          if [ '${{ secrets.TELEGRAM_CHAT_ID }}' != '' ]; then sed -i "s/^TELEGRAM_CHAT_ID=.*$/TELEGRAM_CHAT_ID='${{ secrets.TELEGRAM_CHAT_ID }}'/" .env; fi
+          if [ '${{ secrets.TELEGRAM_BOT_TOKEN }}' != '' ]; then sed -i "s/^TELEGRAM_BOT_TOKEN=.*$/TELEGRAM_BOT_TOKEN='${{ secrets.TELEGRAM_BOT_TOKEN }}'/" .env; fi
+          if [ '${{ secrets.TELEGRAM_BOT_ENABLE }}' != '' ]; then sed -i "s/^TELEGRAM_BOT_ENABLE=.*$/TELEGRAM_BOT_ENABLE='${{ secrets.TELEGRAM_BOT_ENABLE }}'/" .env; fi
+          if [ '${{ secrets.NOTICE_FREQ }}' != '' ]; then sed -i "s/^NOTICE_FREQ=.*$/NOTICE_FREQ='${{ secrets.NOTICE_FREQ }}'/" .env; fi
+          sed -i "s/^ON_GITHUB_ACTIONS=.*$/ON_GITHUB_ACTIONS=true/" .env
+      - name: Renewing Freenom domains
+        run: |
+          php run
